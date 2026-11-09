@@ -4,15 +4,15 @@ const NATIVE_HOST = "com.npu.translate";
 const HOST_HINT = "未注册本地启动器：请先双击运行一次 install_native_host.bat（或用 install_autostart.bat 开机自启）";
 
 // ---------------------------------------------------------------- 热更新
-// ⚠️ 上传到 GitHub 之后，把下面这一行换成你的仓库：<用户名>/<仓库名>
-//    之后弹窗里的「更新地址」留空即可，会自动用这个仓库。
-const REPO_SLUG = "CHANGE_ME/N-Translate";
+// 本项目的更新源。如果你是 fork 或自建镜像，把这行改成 <用户名>/<仓库名> 即可。
+const REPO_SLUG = "NstyZ/N-Translate";
 const RAW_UPDATE_URL = `https://raw.githubusercontent.com/${REPO_SLUG}/main/update.json`;
 const JSDELIVR_URL = `https://cdn.jsdelivr.net/gh/${REPO_SLUG}@main/update.json`;
 const GH_PROXY = "https://gh-proxy.com/";
+// 国内直连 github.com 的 archive 下载基本必失败，所以镜像放第一位（实测 2.5s / 117KB）
 const REPO_ZIP_URLS = [
-  `https://github.com/${REPO_SLUG}/archive/refs/heads/main.zip`,
   `${GH_PROXY}https://github.com/${REPO_SLUG}/archive/refs/heads/main.zip`,
+  `https://github.com/${REPO_SLUG}/archive/refs/heads/main.zip`,
   `https://ghproxy.net/https://github.com/${REPO_SLUG}/archive/refs/heads/main.zip`,
 ];
 

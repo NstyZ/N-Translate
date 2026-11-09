@@ -123,7 +123,7 @@ N-Translate 的做法是**分层**，两个模型都常驻可选：
 ### 1. 装环境
 
 ```bat
-git clone https://github.com/<your-name>/N-Translate.git
+git clone https://github.com/NstyZ/N-Translate.git
 cd N-Translate
 setup.bat
 ```
@@ -170,7 +170,7 @@ install_model.bat opus-mt-en-zh
 
 | 控件 | 作用 |
 |---|---|
-| **更新地址** | 留空即用仓库默认地址；也可填自己的 `update.json` 或镜像地址 |
+| **更新地址** | 留空即用本仓库（`NstyZ/N-Translate`）；fork 后可在弹窗里改成自己的地址 |
 | **检查更新** | 手动比对远端 `update.json` 与本机版本 |
 | **立即更新** | 发现新版本时出现，一键拉取并覆盖源码 |
 | **每小时自动检查** | 默认开启。有新版时工具栏图标上会打一个 `↑` 角标 |
@@ -191,17 +191,16 @@ install_model.bat opus-mt-en-zh
 
 更新时**不会动**你的 `models/`、`llama/`、`.venv/`、`ov_cache/`、`settings.json`、`chrome-extension/extension_id.txt`。
 
-### 上传到自己的仓库后需要改一行
+### 更新源指向哪里
 
-`chrome-extension/background.js` 顶部：
+`chrome-extension/background.js` 顶部（默认已经指向本仓库）：
 
 ```js
-// ⚠️ 上传到 GitHub 之后，把下面这一行换成你的仓库：<用户名>/<仓库名>
-const REPO_SLUG = "CHANGE_ME/N-Translate";
+const REPO_SLUG = "NstyZ/N-Translate";
 ```
 
-改完重新加载插件即可。**不改也能用**——在弹窗「更新地址」里直接填
-`https://raw.githubusercontent.com/<你>/<仓库>/main/update.json` 就行。
+**如果你 fork 了这个项目**，把这一行改成 `<你的用户名>/N-Translate`，重新加载插件即可自建更新通道。
+也可以不改代码，直接在弹窗「更新地址」里填自己的 `https://raw.githubusercontent.com/<你>/<仓库>/main/update.json`。
 
 ### 发布一个新版本
 

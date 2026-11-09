@@ -27,7 +27,7 @@ import tempfile
 import zipfile
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_REPO = "CHANGE_ME/N-Translate"
+DEFAULT_REPO = "NstyZ/N-Translate"
 DEFAULT_URL = f"https://github.com/{DEFAULT_REPO}/archive/refs/heads/main.zip"
 MIRROR_PREFIXES = ["https://gh-proxy.com/", "https://ghproxy.net/", ""]
 
@@ -50,23 +50,37 @@ def _log(msg, quiet):
 def fetch(urls, quiet=False):
     import urllib.request
 
-    last = None
+    # 去重 + 补镜像前缀（已经是镜像地址的保持原样）
+    cands = []
     for u in urls:
+        if not u:
+            continue
+        if any(u.startswith(p) for p in MIRROR_PREFIXES if p):
+            cands.append(u)
+            continue
         for prefix in MIRROR_PREFIXES:
-            full = prefix + u if prefix and not u.startswith(prefix) else u
-            try:
-                _log(f"[..] GET {full}", quiet)
-                req = urllib.request.Request(full, headers={"User-Agent": "n-translate/1.0"})
-                with urllib.request.urlopen(req, timeout=180) as r:
-                    data = r.read()
-                if len(data) < 1024:
-                    last = RuntimeError("下载内容过小，可能 404")
-                    continue
-                _log(f"[ok] {len(data)/2**20:.1f} MB", quiet)
-                return data
-            except Exception as e:
-                last = e
-                _log(f"[..] 失败 {type(e).__name__}: {e}", quiet)
+            cands.append(prefix + u if prefix else u)
+    seen, ordered = set(), []
+    for u in cands:
+        if u not in seen:
+            seen.add(u)
+            ordered.append(u)
+
+    last = None
+    for full in ordered:
+        try:
+            _log(f"[..] GET {full}", quiet)
+            req = urllib.request.Request(full, headers={"User-Agent": "n-translate/1.0"})
+            with urllib.request.urlopen(req, timeout=90) as r:
+                data = r.read()
+            if len(data) < 1024:
+                last = RuntimeError("下载内容过小，可能 404")
+                continue
+            _log(f"[ok] {len(data)/2**20:.1f} MB", quiet)
+            return data
+        except Exception as e:
+            last = e
+            _log(f"[..] 失败 {type(e).__name__}: {e}", quiet)
     raise RuntimeError(f"下载失败：{last}")
 
 
