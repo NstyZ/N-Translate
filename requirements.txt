@@ -1,0 +1,20 @@
+# N-Translate 依赖
+#
+# 说明：setup.bat 会自动创建 .venv 并安装下面这些（版本是实测组合，别随意升）。
+# 手动安装： python -m pip install -r requirements.txt
+
+# ---- 推理：服务运行时必需 ----
+numpy>=2.0
+openvino>=2026.3
+openvino-tokenizers>=2026.3
+sentencepiece>=0.2        # OPUS-MT 的 MarianTokenizer 复刻用
+jinja2>=3.1               # 渲染 Index-Translate 的 chat template
+
+# ---- 导出 / 安装模型时才用到 ----
+optimum-intel[openvino]==2.1.0
+transformers==4.57.6      # 和 optimum-intel 2.1.0 的版本门禁对齐
+huggingface_hub==0.36.2
+nncf>=3.3
+sacremoses
+protobuf
+accelerate

@@ -1,0 +1,35 @@
+# ---- 运行时产物 / 本机状态（都不入库）----
+.venv/
+models/
+llama/
+ov_cache/
+.hf/
+dist/
+_scratch/
+logs/
+__pycache__/
+*.pyc
+
+# ---- 日志与临时文件 ----
+*.log
+*.part
+restart.flag
+
+# ---- 本机相关配置（端口、当前模型、扩展 ID）----
+settings.json
+native_host_manifest.json
+native_host_manifest.reg
+chrome-extension/extension_id.txt
+
+# ---- 密钥：绝对不要提交 ----
+keys/
+*.pem
+*.der
+chrome-extension.pem
+chrome-extension.crx
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
