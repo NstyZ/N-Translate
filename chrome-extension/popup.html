@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <span class="logo">译</span>
+    <div>
+      <h1>N-Translate</h1>
+      <div id="status" class="status"><span class="dot"></span><span id="status-text">检查服务…</span></div>
+    </div>
+  </header>
+
+  <section class="page-actions">
+    <div class="row2">
+      <label class="chk mini">模型
+        <select id="model"><option>加载中…</option></select>
+      </label>
+      <button id="install-model" class="ghost" hidden>安装</button>
+    </div>
+    <div id="model-hint" class="hint"></div>
+
+    <div class="row2">
+      <button id="start-server" class="primary">启动本地服务</button>
+      <button id="stop-server" class="ghost">停止服务</button>
+      <label class="chk mini">设备
+        <select id="device">
+          <option value="NPU">NPU</option>
+          <option value="CPU">CPU</option>
+          <option value="GPU">GPU</option>
+        </select>
+      </label>
+    </div>
+    <div id="server-hint" class="hint"></div>
+
+    <hr />
+
+    <button id="translate-page" class="primary block">翻译整个页面</button>
+    <div class="row2">
+      <button id="restore-page" class="ghost">还原原文</button>
+      <label class="chk" title="页面翻译后，动态加载的新内容会自动补译">
+        <input type="checkbox" id="auto-new" /> 自动翻译新增内容
+      </label>
+    </div>
+    <div id="page-hint" class="hint"></div>
+
+    <hr />
+  </section>
+
+  <label class="row">
+    <span>服务地址</span>
+    <input id="server-url" type="text" spellcheck="false" placeholder="http://127.0.0.1:8765" />
+    <button id="save-url" class="ghost">保存</button>
+  </label>
+
+  <details id="adv" class="adv">
+    <summary>设置 · 热更新</summary>
+
+    <label class="row">
+      <span>更新地址</span>
+      <input id="update-url" type="text" spellcheck="false" placeholder="留空 = 用仓库里的默认地址" />
+      <button id="save-update-url" class="ghost">保存</button>
+    </label>
+
+    <div class="row2">
+      <button id="check-update" class="ghost">检查更新</button>
+      <button id="apply-update" class="primary" hidden>立即更新</button>
+    </div>
+
+    <label class="chk mini">
+      <input type="checkbox" id="auto-update" checked /> 每小时自动检查（有新版会在图标上打角标）
+    </label>
+
+    <div id="update-hint" class="hint"></div>
+    <div class="hint" id="ver-line"></div>
+  </details>
+
+  <textarea id="input" placeholder="粘贴英文文本…&#10;（Ctrl+Enter 翻译）" rows="4"></textarea>
+
+  <div class="row">
+    <button id="translate" class="primary">翻 译</button>
+    <button id="copy" class="ghost">复制结果</button>
+    <span id="stat" class="stat"></span>
+  </div>
+
+  <div id="result" class="result" hidden></div>
+
+  <footer>Alt+T 翻译选中 · Alt+Shift+T 翻译整页 · 推理由本机 NPU 完成</footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

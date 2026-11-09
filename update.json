@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "date": "2026-11-09",
+  "notes": [
+    "首个公开版本：基于哔哩哔哩 Index-Translate 2B 的本地英译中插件",
+    "Index-Translate 走 llama.cpp（CPU / CUDA），OPUS-MT 走 OpenVINO NPU 作为轻量模式",
+    "支持整页翻译、划词翻译、动态内容增量翻译",
+    "启动 1.5~3.5 秒、单句 128~140 毫秒"
+  ]
+}

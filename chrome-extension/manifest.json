@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "N-Translate · 本地 NPU 翻译（英→中）",
+  "version": "1.0.0",
+  "description": "调用本机 Intel NPU 与显卡的离线英译中：划词翻译、整页翻译、一键还原，可在 OPUS-MT 与 B 站 Index-Translate 2B 之间切换，可自动唤起本地服务。",
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "scripting",
+    "activeTab",
+    "nativeMessaging",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://raw.githubusercontent.com/*",
+    "https://cdn.jsdelivr.net/*",
+    "https://gh-proxy.com/*",
+    "https://ghproxy.net/*",
+    "https://github.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "N-Translate · 本地 NPU 翻译（英→中）",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "commands": {
+    "translate-selection": {
+      "suggested_key": {
+        "default": "Alt+T"
+      },
+      "description": "翻译选中的英文"
+    },
+    "translate-page": {
+      "suggested_key": {
+        "default": "Alt+Shift+T"
+      },
+      "description": "翻译整个页面"
+    }
+  }
+}
