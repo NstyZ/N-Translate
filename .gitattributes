@@ -1,0 +1,7 @@
+# 换行符一律不做转换（* -text）
+#   .bat 必须是 CRLF，用 LF 会直接跑不起来；其余文件保持作者提交时的样子
+* -text
+
+# 图片按二进制处理
+*.png binary
+*.ico binary

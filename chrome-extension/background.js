@@ -179,7 +179,12 @@ async function ensureServer() {
   const { port, device } = await cfg();
   const res = await nativeRequest({ cmd: "ensure", device, port });
   if (!res?.ok) {
-    return { ok: false, error: res?.error || "启动失败", hint: HOST_HINT };
+    return {
+      ok: false,
+      error: res?.error || "启动失败",
+      hint: res?.hint || HOST_HINT,
+      needSetup: !!res?.needSetup,
+    };
   }
   const health = await waitReady();
   return { ok: true, state: res.state, health, elapsed: res.elapsed };
@@ -344,6 +349,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       // 只查询，不自动启动（由 popup 显式决定是否启动）
       api("/health")
         .then((data) => sendResponse({ ok: true, data }))
+        .catch((e) => sendResponse({ ok: false, error: String(e?.message || e) }));
+      return true;
+
+    // ---- 运行环境体检 / 自动修复 ----
+    case "DOCTOR":
+      nativeRequest({ cmd: "doctor", fix: !!msg.fix, withModel: !!msg.withModel },
+                    3600000)
+        .then((r) => sendResponse(r || { ok: false, error: "环境检查没有返回结果" }))
         .catch((e) => sendResponse({ ok: false, error: String(e?.message || e) }));
       return true;
 

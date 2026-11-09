@@ -19,6 +19,7 @@ Chrome 扩展 + 本地推理服务，英译中，全程离线。
 - [架构](#架构)
 - [快速开始](#快速开始)
 - [模型说明](#模型说明)
+- [运行环境自检与自动修复](#运行环境自检与自动修复)
 - [热更新](#热更新)
 - [实现要点](#实现要点)
 - [目录结构](#目录结构)
@@ -164,6 +165,45 @@ install_model.bat opus-mt-en-zh
 
 或直接在插件弹窗里点「安装」（后台下载，可关掉弹窗）。
 
+## 运行环境自检与自动修复
+
+第一次用、或者换了台机器，**不需要先读懂报错**——`doctor.py` 会把全部前提条件过一遍，缺什么补什么：
+
+```bat
+doctor.bat              :: 只体检，出报告（不动任何文件）
+doctor.bat fix          :: 缺什么装什么（venv / 依赖 / llama.cpp / 模型）
+doctor.bat fix model    :: 连主模型（1.2GB）一起下
+```
+
+体检的 12 项：
+
+| 类别 | 检查内容 | 缺了会自动补 |
+|---|---|---|
+| 系统 | Windows 版本 / 64 位 / 磁盘空间 | — |
+| Python | 找得到 3.10+ 64 位（会自动跳过 Microsoft Store 的 python 残桩） | — |
+| 虚拟环境 | `.venv` 存在且能跑 | ✅ 重建 |
+| 依赖 | numpy / openvino / openvino-tokenizers / sentencepiece / jinja2 | ✅ `pip install -r requirements.txt`（默认源失败自动切清华镜像） |
+| 推理运行时 | `llama\llama-server.exe` | ✅ 自动下载 CPU 版 |
+| 模型 | OPUS-MT（111MB）、Index-Translate 2B（1.2GB） | ✅（大模型需 `--with-model`） |
+| NPU | `Core().available_devices` 是否含 NPU | 只警告，自动回退 CPU |
+| 端口 | 8765 是否被占用 | — |
+| 启动器 | Native Messaging 注册项 | 只提示（要写注册表） |
+
+### 三处自动触发点
+
+1. **`start_server.bat` 启动前**：先用 0.1 秒确认「venv 能跑 + 至少有一个模型」。
+   不满足就自动跑一遍 `doctor.py --fix` 补齐再启动，而不是甩一句 "Python environment not found"。
+2. **插件弹窗**：服务启动失败时（例如新电脑还没装环境），会直接出现
+   **「检查运行环境」/「自动修复」** 两个按钮，体检结果逐条列在弹窗里。
+   这一路走的是 Native Messaging → `doctor.py`，所以**连 `.venv` 都还没建的裸机也能用**
+   （`npu_host.bat` 会退回系统 Python 应答）。
+3. **`setup.bat` 收尾**：装完自动跑一次体检，有缺项当场修。
+
+```bat
+:: 机器可读（插件就是这么调的）
+python doctor.py --json
+```
+
 ## 热更新
 
 插件自带更新通道，不用重新下载分发包。入口在弹窗底部 **「设置 · 热更新」**：
@@ -262,6 +302,7 @@ N-Translate/
 ├─ pipelines.py                   OpenVINO 翻译管线（全静态形状）
 ├─ model_registry.py              模型注册表
 ├─ prepare_tokenizer.py           HF tokenizer → OpenVINO 图
+├─ doctor.py / doctor.bat        运行环境体检与自动修复
 ├─ updater.py                     热更新：拉取源码包并就地覆盖
 ├─ update.json                    更新清单（版本号 + 更新说明）
 ├─ install_model.py / .bat        下载并导出指定模型

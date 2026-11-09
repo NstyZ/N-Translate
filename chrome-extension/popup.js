@@ -64,10 +64,16 @@ async function ensureServer(showHint = true) {
     const dev = resp.health?.execution_devices || resp.health?.device || "";
     hint(`服务已就绪（${resp.state === "already-running" ? "原本就在运行" : "已启动"}` +
          `${resp.elapsed ? "，" + resp.elapsed + "s" : ""}）· ${dev}`);
+    $("env-box").hidden = true;
     await refreshHealth();
     return true;
   }
   hint(resp.hint ? `${resp.error}\n${resp.hint}` : (resp.error || "启动失败"), true);
+  // 环境没装好：直接把「检查/修复」摆出来，别让用户去猜
+  if (resp.needSetup) {
+    showEnvBox("运行环境还没装好。点下面的「检查运行环境」，缺什么会列出来，再点「自动修复」即可。", true);
+    $("doctor-fix").hidden = true;
+  }
   await refreshHealth();
   return false;
 }
@@ -242,6 +248,47 @@ async function applyUpdate() {
   await refreshVersionLine();
 }
 
+// ---------------- 运行环境体检 / 自动修复 ----------------
+function showEnvBox(text, isErr = true) {
+  $("env-box").hidden = false;
+  $("env-text").textContent = text || "";
+  $("env-text").className = "hint" + (isErr ? " err" : "");
+}
+
+function renderDoctor(r) {
+  if (!r || r.error) {
+    showEnvBox(`环境检查失败：${r?.error || "无返回"}`, true);
+    return;
+  }
+  const items = r.items || [];
+  const bad = items.filter((i) => i.status !== "ok");
+  const lines = items.map((i) => {
+    const mark = i.status === "ok" ? "✓" : i.status === "warn" ? "!" : "✗";
+    return `${mark} ${i.title}：${i.detail}`;
+  });
+  const head = r.ok
+    ? `环境就绪（${items.length} 项通过）`
+    : `发现 ${bad.length} 项需要注意`;
+  showEnvBox(head + "\n" + lines.join("\n"), !r.ok && bad.some((i) => i.status === "fail"));
+  $("doctor-fix").hidden = !bad.some((i) => i.fixable);
+}
+
+async function runDoctor(fix = false) {
+  const btns = [$("doctor-check"), $("doctor-fix")];
+  btns.forEach((b) => (b.disabled = true));
+  $("doctor-fix").textContent = fix ? "修复中…" : "自动修复";
+  showEnvBox(fix
+    ? "正在自动补齐缺失的运行环境…\n（首次可能要下载依赖或模型，最长几分钟）"
+    : "正在检查运行环境…", false);
+  const r = await send({ type: "DOCTOR", fix, withModel: false });
+  btns.forEach((b) => (b.disabled = false));
+  $("doctor-fix").textContent = "自动修复";
+  renderDoctor(r);
+  if (fix && r && r.ok) {
+    hint("环境已补齐，点「启动本地服务」即可");
+  }
+}
+
 // ---------------- 粘贴翻译 ----------------
 async function doTranslate() {
   const text = $("input").value.trim();
@@ -296,6 +343,8 @@ $("model").addEventListener("change", (e) => selectModel(e.target.value));
 $("install-model").addEventListener("click", installModel);
 
 $("start-server").addEventListener("click", () => ensureServer(true));
+$("doctor-check").addEventListener("click", () => runDoctor(false));
+$("doctor-fix").addEventListener("click", () => runDoctor(true));
 $("stop-server").addEventListener("click", async () => {
   const resp = await send({ type: "STOP_SERVER" });
   hint(resp.ok ? "已停止本地服务。" : `停止失败：${resp.error}`, !resp.ok);

@@ -196,6 +196,17 @@ if ($LASTEXITCODE -ne 0) {
     Say  '      驱动下载：https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html'
 }
 
+# 完整环境体检：把 Windows/磁盘/Python/venv/依赖/llama.cpp/模型/NPU/端口 一次看全，
+# 有缺的当场补（doctor.py 的修复是幂等的，重复跑不会坏事）
+Say ''
+Say '  - 运行环境体检（doctor.py）...'
+& $vpy (Join-Path $root 'doctor.py')
+if ($LASTEXITCODE -ne 0) {
+    Warn '体检发现缺失项，正在尝试自动补齐 ...'
+    & $vpy (Join-Path $root 'doctor.py') --fix
+    & $vpy (Join-Path $root 'doctor.py')
+}
+
 # ---------------------------------------------------------------- 注册
 Say ''
 if ($NoRegister) {

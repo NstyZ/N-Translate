@@ -12,6 +12,7 @@ npu_host.py —— Chrome Native Messaging 宿主
 import json
 import os
 import struct
+import subprocess
 import sys
 import traceback
 
@@ -50,6 +51,38 @@ def send_msg(obj) -> None:
     sys.stdout.buffer.flush()
 
 
+def find_python():
+    """优先用 .venv 的解释器；环境没装好时退回系统 Python（doctor.py 是纯标准库）。"""
+    venv_py = os.path.join(ROOT, ".venv", "Scripts", "python.exe")
+    if os.path.exists(venv_py):
+        return [venv_py]
+    import shutil
+    for exe, pre in (("py", ["-3"]), ("python", []), ("python3", [])):
+        full = shutil.which(exe)
+        if full and "windowsapps" not in full.lower():
+            return [full] + pre
+    return [sys.executable]
+
+
+def run_doctor(fix: bool = False, with_model: bool = False) -> dict:
+    """跑一次环境体检（可带修复），返回 doctor.py 的 JSON。"""
+    args = find_python() + [os.path.join(ROOT, "doctor.py"), "--json"]
+    if fix:
+        args.append("--fix")
+    if with_model:
+        args.append("--with-model")
+    try:
+        out = subprocess.run(args, cwd=ROOT, capture_output=True, text=True,
+                             timeout=5400, encoding="utf-8", errors="replace")
+        for line in reversed((out.stdout or "").strip().splitlines()):
+            line = line.strip()
+            if line.startswith("{"):
+                return json.loads(line)
+        return {"ok": False, "error": ((out.stderr or out.stdout) or "")[-500:]}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
 def handle(msg: dict) -> dict:
     cmd = (msg or {}).get("cmd", "")
     device = (msg or {}).get("device") or "NPU"
@@ -63,10 +96,23 @@ def handle(msg: dict) -> dict:
         return {"ok": bool(h), "state": "running" if h else "stopped", "health": h, "port": port}
 
     if cmd == "ensure":
+        # 启动前先看运行环境在不在；不在就明确告诉插件「需要装环境」，
+        # 而不是让用户看到一个没头没尾的 "服务未连接"。
+        if not os.path.exists(os.path.join(ROOT, ".venv", "Scripts", "python.exe")):
+            return {
+                "ok": False, "needSetup": True,
+                "error": "运行环境还没装：缺少 .venv",
+                "hint": "点「检查运行环境」可自动安装，或双击 setup.bat",
+            }
         return sd.ensure(device=device, port=port)
 
     if cmd == "stop":
         return sd.stop(port=port)
+
+    if cmd == "doctor":
+        # 插件弹窗里的「检查运行环境 / 一键修复」
+        return run_doctor(fix=bool((msg or {}).get("fix")),
+                          with_model=bool((msg or {}).get("withModel")))
 
     if cmd == "update":
         # 热更新：下载仓库源码包 → 停服务 → 覆盖源码（保留模型/运行时/设置）→ 重启服务
