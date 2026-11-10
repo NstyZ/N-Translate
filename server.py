@@ -43,6 +43,15 @@ STOP = threading.Event()
 ACTIVE = {"model": reg.DEFAULT_MODEL}
 STATE = {"ready": False, "loading": False, "error": None, "started_at": time.time()}
 
+# ---------------------------------------------------------------------------
+# 与浏览器同生命周期
+#
+# 插件通过 Native Messaging 拉起服务时，宿主会把自己的「浏览器根进程 PID」传进来。
+# 这里开一个看门狗线程：浏览器一退出（PID 消失），立刻关掉 llama-server 并退出，
+# 把显存和内存还回去。手动运行 start_server.bat 时没有 owner，行为保持原样。
+# ---------------------------------------------------------------------------
+OWNER = {"pid": 0, "since": 0.0}
+
 
 def run_on_main(fn, timeout: float = 900.0):
     """把 fn 放到主线程执行并等待结果。
@@ -76,6 +85,131 @@ def release_pipelines(device: str = None):
 
 
 RESTART_FLAG = os.path.join(ROOT, "restart.flag")
+
+
+# ---------------------------------------------------------------------------
+# 浏览器生命周期看门狗
+# ---------------------------------------------------------------------------
+def set_owner(pid: int) -> None:
+    """登记「我的主人是哪个浏览器进程」。0 表示不绑定（手动启动模式）。"""
+    try:
+        pid = int(pid or 0)
+    except Exception:
+        pid = 0
+    if pid <= 0 or pid == os.getpid():
+        return
+    if OWNER["pid"] != pid:
+        OWNER["pid"] = pid
+        OWNER["since"] = time.time()
+        print(f"[owner] 已绑定浏览器进程 pid={pid}", flush=True)
+
+
+def owner_alive() -> bool:
+    pid = OWNER["pid"]
+    if pid <= 0:
+        return True                    # 没绑定：一直活着
+    try:
+        import winproc
+        return winproc.is_alive(pid, winproc.BROWSER_NAMES)
+    except Exception:
+        return True                    # 探测失败时宁可不杀
+
+
+def start_watchdog() -> None:
+    """每 2 秒看一眼浏览器还在不在；没了就把 llama-server 一起带走。"""
+    def loop():
+        while not STOP.is_set():
+            time.sleep(2.0)
+            if OWNER["pid"] <= 0:
+                continue
+            if owner_alive():
+                continue
+            print(f"[watchdog] 浏览器已退出（pid={OWNER['pid']}），关闭服务并释放显存",
+                  flush=True)
+            try:
+                llama_stop()
+            except Exception:
+                pass
+            try:
+                if HTTPD is not None:
+                    HTTPD.shutdown()
+            except Exception:
+                pass
+            STOP.set()
+            os._exit(0)
+    threading.Thread(target=loop, daemon=True, name="owner-watchdog").start()
+
+
+# ---------------------------------------------------------------------------
+# Job Object：服务一死，llama-server 必定跟着死（连硬杀都兜得住）
+# ---------------------------------------------------------------------------
+_JOB = {"handle": None}
+
+
+def _kill_on_close_job():
+    if os.name != "nt":
+        return None
+    if _JOB["handle"]:
+        return _JOB["handle"]
+    try:
+        import ctypes
+        import ctypes.wintypes as wt
+
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+        class Basic(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64),
+                        ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wt.DWORD),
+                        ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t),
+                        ("ActiveProcessLimit", wt.DWORD),
+                        ("Affinity", ctypes.c_size_t),
+                        ("PriorityClass", wt.DWORD),
+                        ("SchedulingClass", wt.DWORD)]
+
+        class IoCounters(ctypes.Structure):
+            _fields_ = [("ReadOperationCount", ctypes.c_uint64),
+                        ("WriteOperationCount", ctypes.c_uint64),
+                        ("OtherOperationCount", ctypes.c_uint64),
+                        ("ReadTransferCount", ctypes.c_uint64),
+                        ("WriteTransferCount", ctypes.c_uint64),
+                        ("OtherTransferCount", ctypes.c_uint64)]
+
+        class Ext(ctypes.Structure):
+            _fields_ = [("BasicLimitInformation", Basic), ("IoInfo", IoCounters),
+                        ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t),
+                        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                        ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        job = k32.CreateJobObjectW(None, None)
+        if not job:
+            return None
+        info = Ext()
+        info.BasicLimitInformation.LimitFlags = 0x2000      # KILL_ON_JOB_CLOSE
+        k32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info))
+        _JOB["handle"] = job
+        return job
+    except Exception as e:
+        print(f"[job] 创建 Job Object 失败：{e}", flush=True)
+        return None
+
+
+def _put_in_job(proc) -> None:
+    """把子进程放进「父死即杀」的 Job 里。失败不影响主流程。"""
+    job = _kill_on_close_job()
+    if not job or proc is None:
+        return
+    try:
+        import ctypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = int(proc._handle)          # subprocess 在 Windows 上就是 HANDLE
+        if not k32.AssignProcessToJobObject(job, handle):
+            err = ctypes.get_last_error()
+            print(f"[job] AssignProcessToJobObject 失败 (err={err})", flush=True)
+    except Exception as e:
+        print(f"[job] 绑定子进程失败：{e}", flush=True)
 
 
 def stop_for_restart():
@@ -212,6 +346,7 @@ def llama_ensure(timeout: float = 180.0):
         creationflags=flags, close_fds=True,
     )
     LLAMA["proc"] = proc
+    _put_in_job(proc)               # 本服务一旦退出，llama-server 跟着退出
     t0 = time.time()
     while time.time() - t0 < timeout:
         if proc.poll() is not None:
@@ -831,6 +966,8 @@ class Handler(BaseHTTPRequestHandler):
                 "load_error": STATE["error"],
                 "device": DEVICE,
                 "engine": eng,
+                "owner_pid": OWNER["pid"],
+                "browser_linked": OWNER["pid"] > 0,
                 "model": ACTIVE["model"],
                 "model_label": reg.meta(ACTIVE["model"])["label"],
                 "execution_devices": ("llama.cpp" if eng == "llamacpp"
@@ -881,6 +1018,20 @@ class Handler(BaseHTTPRequestHandler):
             if HTTPD is not None:
                 threading.Thread(target=HTTPD.shutdown, daemon=True).start()
             return
+
+        # ---------- 绑定/解绑浏览器生命周期 ----------
+        if path == "/owner":
+            try:
+                body = self._read_json()
+                pid = int(body.get("pid") or 0)
+            except Exception as e:
+                return self._send(400, {"ok": False, "error": f"bad request: {e}"})
+            if pid > 0:
+                set_owner(pid)
+            else:
+                OWNER["pid"] = 0
+            return self._send(200, {"ok": True, "owner_pid": OWNER["pid"],
+                                    "browser_linked": OWNER["pid"] > 0})
 
         # ---------- 模型：切换 / 安装 / 安装进度 ----------
         if path in ("/models/select", "/models/install", "/models/install_status"):
@@ -1069,8 +1220,12 @@ def main() -> int:
     ap.add_argument("--device", default="NPU", help="NPU / CPU / GPU / AUTO")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--model", help="启动使用的模型 ID（默认取 settings.json 里上次选中的）")
+    ap.add_argument("--owner-pid", type=int, default=0,
+                    help="浏览器根进程 PID：它一退出，本服务跟着退出（插件拉起时自动带上）")
     args = ap.parse_args()
     DEVICE, PORT = args.device, args.port
+    set_owner(args.owner_pid)
+    start_watchdog()
 
     mid = args.model or reg.get_active()
     if not reg.exists(mid) or not reg.installed(mid):

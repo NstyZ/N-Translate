@@ -1,11 +1,12 @@
 {
-  "version": "1.0.1",
-  "date": "2026-11-09",
+  "version": "1.0.2",
+  "date": "2026-11-10",
   "notes": [
-    "新增 doctor.py：12 项运行环境体检（Windows / 磁盘 / Python / venv / 依赖 / llama.cpp / 模型 / NPU / 端口 / 启动器）",
-    "缺什么自动补什么：重建 venv、装依赖、下载 llama.cpp 与模型（doctor.bat fix）",
-    "start_server.bat 启动前自检，环境不全先自动修复再启动",
-    "插件弹窗：服务起不来时直接给出「检查运行环境 / 自动修复」按钮",
-    "npu_host.bat 支持系统 Python 兜底，裸机也能响应插件"
+    "服务与浏览器同生命周期：浏览器一关，服务与 llama-server 一起退出，显存/内存立即释放",
+    "新增 winproc.py（纯 ctypes）：顺着进程树找到浏览器主进程 PID 并交给服务看门",
+    "llama-server 放进「父死即杀」Job Object，服务被硬杀也不会留下孤儿进程",
+    "已在跑的服务会被插件自动认领（POST /owner），无需重启",
+    "doctor 新增「服务跟随浏览器」检查项；弹窗状态栏显示「随浏览器退出」",
+    "开机自启降级为不推荐（服务已能按需拉起并按需退出）"
   ]
 }

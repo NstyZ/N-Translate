@@ -51,13 +51,37 @@ def _python_exe() -> str:
     return sys.executable
 
 
-def ensure(device: str = "NPU", port: int = 8765, wait: float = 90.0) -> dict:
-    """确保服务在运行；返回 {ok, state, health?, error?}"""
+def bind_owner(port: int, owner_pid: int, timeout: float = 3.0) -> bool:
+    """把已经在跑的服务绑定到某个浏览器进程上（服务可能先前是手动启动的）。"""
+    if owner_pid <= 0:
+        return False
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/owner",
+            data=json.dumps({"pid": owner_pid}).encode(),
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return bool(json.loads(r.read().decode("utf-8")).get("ok"))
+    except Exception:
+        return False
+
+
+def ensure(device: str = "NPU", port: int = 8765, wait: float = 90.0,
+           owner_pid: int = 0) -> dict:
+    """确保服务在运行；返回 {ok, state, health?, error?}
+
+    owner_pid > 0 时，服务会在该进程（浏览器）退出后自动关闭并释放显存。
+    """
     h = health(port)
     if h and h.get("ready") is not False:
+        if owner_pid > 0 and h.get("owner_pid") != owner_pid:
+            bind_owner(port, owner_pid)     # 已在跑：改成跟随这次发起请求的浏览器
+            h = health(port) or h
         return {"ok": True, "state": "already-running", "health": h, "port": port}
     if h:
         # 进程在但模型还在编译：等它，别重复拉起（端口已被占，第二个实例只会报错退出）
+        if owner_pid > 0 and h.get("owner_pid") != owner_pid:
+            bind_owner(port, owner_pid)
         t0 = time.time()
         while time.time() - t0 < wait:
             h = health(port)
@@ -85,8 +109,11 @@ def ensure(device: str = "NPU", port: int = 8765, wait: float = 90.0) -> dict:
     try:
         # 日志追加到 server.log；stdin 给 DEVNULL，彻底脱离调用方
         log = open(LOG, "ab", buffering=0)
+        argv = [exe, SERVER, "--device", device, "--port", str(port)]
+        if owner_pid > 0:
+            argv += ["--owner-pid", str(owner_pid)]
         subprocess.Popen(
-            [exe, SERVER, "--device", device, "--port", str(port)],
+            argv,
             cwd=ROOT,
             env=env,
             stdin=subprocess.DEVNULL,
@@ -139,6 +166,8 @@ def main() -> int:
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--status", action="store_true", help="只检查状态，不启动")
     ap.add_argument("--stop", action="store_true", help="停止正在运行的服务")
+    ap.add_argument("--owner-pid", type=int, default=0,
+                    help="浏览器根进程 PID（它退出后服务自动关闭）")
     args = ap.parse_args()
 
     if args.stop:
@@ -147,7 +176,7 @@ def main() -> int:
         h = health(args.port)
         res = {"ok": bool(h), "state": "running" if h else "stopped", "health": h, "port": args.port}
     else:
-        res = ensure(args.device, args.port, args.wait)
+        res = ensure(args.device, args.port, args.wait, owner_pid=args.owner_pid)
 
     if args.json:
         print(json.dumps(res, ensure_ascii=False))

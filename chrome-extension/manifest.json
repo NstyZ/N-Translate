@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "N-Translate · 本地 NPU 翻译（英→中）",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "调用本机 Intel NPU 与显卡的离线英译中：划词翻译、整页翻译、一键还原，可在 OPUS-MT 与 B 站 Index-Translate 2B 之间切换，可自动唤起本地服务。",
   "permissions": [
     "contextMenus",

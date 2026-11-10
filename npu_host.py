@@ -104,7 +104,20 @@ def handle(msg: dict) -> dict:
                 "error": "运行环境还没装：缺少 .venv",
                 "hint": "点「检查运行环境」可自动安装，或双击 setup.bat",
             }
-        return sd.ensure(device=device, port=port)
+        # 宿主是被浏览器拉起来的 —— 顺着进程树往上找浏览器主进程，
+        # 交给服务当「主人」：浏览器一关，服务连同 llama-server 一起退出。
+        owner = 0
+        try:
+            import winproc
+            owner = winproc.find_browser_pid()
+        except Exception:
+            owner = 0
+        if owner:
+            _log(f"ensure: owner browser pid={owner}")
+        res = sd.ensure(device=device, port=port, owner_pid=owner)
+        if owner:
+            res["owner_pid"] = owner
+        return res
 
     if cmd == "stop":
         return sd.stop(port=port)

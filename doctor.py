@@ -237,6 +237,26 @@ def check_all():
                       "已注册" if reg_ok else "未注册（双击 install_native_host.bat 或重跑 setup.bat）",
                       not reg_ok, None))
 
+    # --- 9. 服务是否跟随浏览器 ---
+    link = None
+    owner = 0
+    try:
+        import urllib.request
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=1.5) as r:
+            info = json.loads(r.read().decode("utf-8"))
+        link = bool(info.get("browser_linked"))
+        owner = int(info.get("owner_pid") or 0)
+    except Exception:
+        link = None
+    if link is None:
+        items.append(Item("link", "服务跟随浏览器", "warn", "服务未运行，无法判断"))
+    elif link:
+        items.append(Item("link", "服务跟随浏览器", "ok",
+                          f"已绑定浏览器 pid={owner}：关掉浏览器会自动退出"))
+    else:
+        items.append(Item("link", "服务跟随浏览器", "warn",
+                          "当前服务是手动启动的，关浏览器不会退出（插件拉起的会自动跟随）"))
+
     return items
 
 

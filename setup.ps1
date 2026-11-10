@@ -218,7 +218,9 @@ if ($NoRegister) {
         & $vpy (Join-Path $root 'fix_extension.py')
     }
     Say ''
-    if (Ask '是否开启「开机自动启动本地服务」（之后完全无需手动启动）？' $true) {
+    Say '  说明：服务现在会「跟随浏览器」——浏览器关掉，服务连同 llama-server 一起退出，'
+    Say '        显存和内存立刻归还。所以通常不需要开机自启。'
+    if (Ask '是否仍要开启「开机自动启动本地服务」？（会常驻，不推荐）' $false) {
         powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'install_autostart.ps1')
     }
 }

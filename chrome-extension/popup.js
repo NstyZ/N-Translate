@@ -46,8 +46,9 @@ async function refreshHealth() {
   }
   const d = resp.data;
   setDot("ok");
+  const link = d.browser_linked ? "· 随浏览器退出" : "";
   $("status-text").textContent =
-    `已连接 · ${d.execution_devices || d.device} · ${d.model_label || d.model}`;
+    `已连接 · ${d.execution_devices || d.device} · ${d.model_label || d.model} ${link}`.trim();
   return true;
 }
 
